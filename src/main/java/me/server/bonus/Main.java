@@ -1,98 +1,94 @@
-package me.server.bonus;
+package ru.yourname.dailyreward;
 
 import org.bukkit.Bukkit;
-import org.bukkit.Material;
-import org.bukkit.Statistic;
+import org.bukkit.ChatColor;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
-import org.bukkit.event.EventHandler;
-import org.bukkit.event.Listener;
-import org.bukkit.event.inventory.InventoryClickEvent;
-import org.bukkit.inventory.Inventory;
-import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.java.JavaPlugin;
 
-import java.util.ArrayList;
-import java.util.List;
+public class Main extends JavaPlugin implements CommandExecutor {
 
-public class Main extends JavaPlugin implements Listener, CommandExecutor {
+    // 24 часа в миллисекундах
+    private final long COOLDOWN_MS = 24 * 60 * 60 * 1000; 
 
     @Override
     public void onEnable() {
-        getCommand("bonus").setExecutor(this);
+        // Создаем конфиг, если его нет
+        saveDefaultConfig();
+        // Регистрация команд
+        getCommand("reward").setExecutor(this);
         getCommand("lefttime").setExecutor(this);
-        getServer().getPluginManager().registerEvents(this, this);
-        
-        Bukkit.getScheduler().runTaskTimer(this, () -> {
-            for (Player p : Bukkit.getOnlinePlayers()) {
-                if (p.hasPermission("group.hero")) {
-                    Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "eco give " + p.getName() + " 500");
-                    p.sendMessage("§b[Зарплата] §fВы получили §e500 монет §fкак §lHERO§f!");
-                }
-            }
-        }, 72000L, 72000L);
+        getCommand("skiptime").setExecutor(this);
+        getLogger().info("DailyReward активирован!");
     }
 
     @Override
     public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
-        if (!(sender instanceof Player)) return true;
-        Player p = (Player) sender;
-
-        if (label.equalsIgnoreCase("bonus")) {
-            openMenu(p);
-        } else if (label.equalsIgnoreCase("lefttime")) {
-            if (p.hasPermission("bonus.admin")) {
-                long mins = p.getStatistic(Statistic.PLAY_ONE_MINUTE) / 1200;
-                p.sendMessage("§a[Админ] Ваше время: §e" + mins + " мин.");
-            }
+        if (!(sender instanceof Player)) {
+            sender.sendMessage("Команды доступны только игрокам!");
+            return true;
         }
-        return true;
-    }
 
-    public void openMenu(Player p) {
-        Inventory inv = Bukkit.createInventory(null, 27, "§0Награды за онлайн");
-        long mins = p.getStatistic(Statistic.PLAY_ONE_MINUTE) / 1200;
+        Player player = (Player) sender;
+        String path = "players." + player.getUniqueId();
 
-        inv.setItem(10, createItem(Material.IRON_INGOT, "§e5 Минут", mins >= 5, "1000 монет"));
-        inv.setItem(13, createItem(Material.GOLD_INGOT, "§e30 Минут", mins >= 30, "5000 монет"));
-        inv.setItem(16, createItem(Material.NETHERITE_CHESTPLATE, "§b§lHERO", mins >= 120, "Привилегия HERO"));
+        // КОМАНДА /REWARD
+        if (cmd.getName().equalsIgnoreCase("reward")) {
+            long lastUsed = getConfig().getLong(path, 0);
+            long now = System.currentTimeMillis();
 
-        p.openInventory(inv);
-    }
-
-    private ItemStack createItem(Material mat, String name, boolean ready, String reward) {
-        ItemStack item = new ItemStack(mat);
-        ItemMeta meta = item.getItemMeta();
-        meta.setDisplayName(name);
-        List<String> lore = new ArrayList<>();
-        lore.add("§7Награда: §a" + reward);
-        lore.add(ready ? "§a✔ Можно забрать!" : "§c✖ Еще не отыграно");
-        meta.setLore(lore);
-        item.setItemMeta(meta);
-        return item;
-    }
-
-    @EventHandler
-    public void onClick(InventoryClickEvent e) {
-        if (e.getView().getTitle().equals("§0Награды за онлайн")) {
-            e.setCancelled(true);
-            if (e.getCurrentItem() == null) return;
-
-            Player p = (Player) e.getWhoClicked();
-            long mins = p.getStatistic(Statistic.PLAY_ONE_MINUTE) / 1200;
-            int slot = e.getSlot();
-
-            if (slot == 10 && mins >= 5) {
-                Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "eco give " + p.getName() + " 1000");
-                p.closeInventory();
-            } else if (slot == 16 && mins >= 120) {
-                Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "lp user " + p.getName() + " parent set hero");
-                p.sendMessage("§b[Бонус] §fВы получили статус §lHERO§f!");
-                p.closeInventory();
+            if (now - lastUsed >= COOLDOWN_MS) {
+                // Выдаем награду (алмаз)
+                Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "give " + player.getName() + " diamond 1");
+                player.sendMessage(ChatColor.GREEN + "✔ Вы получили ежедневную награду!");
+                
+                // Сохраняем время получения
+                getConfig().set(path, now);
+                saveConfig();
+            } else {
+                long timeLeft = (lastUsed + COOLDOWN_MS) - now;
+                player.sendMessage(ChatColor.RED + "✘ Награда еще не доступна! Подождите " + formatTime(timeLeft));
             }
+            return true;
         }
+
+        // КОМАНДА /LEFTTIME
+        if (cmd.getName().equalsIgnoreCase("lefttime")) {
+            long lastUsed = getConfig().getLong(path, 0);
+            long now = System.currentTimeMillis();
+            long timeLeft = (lastUsed + COOLDOWN_MS) - now;
+
+            if (timeLeft <= 0) {
+                player.sendMessage(ChatColor.GREEN + "★ Награда уже доступна! Используйте /reward");
+            } else {
+                player.sendMessage(ChatColor.YELLOW + "⏳ До следующей награды осталось: " + formatTime(timeLeft));
+            }
+            return true;
+        }
+
+        // КОМАНДА /SKIPTIME (для админов)
+        if (cmd.getName().equalsIgnoreCase("skiptime")) {
+            if (!player.hasPermission("dailyreward.admin")) {
+                player.sendMessage(ChatColor.RED + "У вас нет прав (dailyreward.admin)!");
+                return true;
+            }
+            // Сбрасываем время в 0
+            getConfig().set(path, 0);
+            saveConfig();
+            player.sendMessage(ChatColor.AQUA + "⚡ Время ожидания сброшено! Теперь вы можете взять /reward");
+            return true;
+        }
+
+        return false;
+    }
+
+    // Вспомогательный метод для красивого вывода времени
+    private String formatTime(long ms) {
+        long hours = ms / (1000 * 60 * 60);
+        long minutes = (ms / (1000 * 60)) % 60;
+        long seconds = (ms / 1000) % 60;
+        return String.format("%02dч. %02dмин. %02dсек.", hours, minutes, seconds);
     }
 }

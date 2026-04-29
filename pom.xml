@@ -16,9 +16,14 @@
     </properties>
 
     <repositories>
+        <!-- Правильный репозиторий Spigot -->
         <repository>
             <id>spigotmc-repo</id>
             <url>https://spigotmc.org</url>
+        </repository>
+        <repository>
+            <id>sonatype</id>
+            <url>https://sonatype.org</url>
         </repository>
     </repositories>
 

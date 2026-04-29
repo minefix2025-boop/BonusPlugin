@@ -4,7 +4,7 @@ main: me.server.bonus.Main
 api-version: 1.16
 commands:
   bonus:
-    description: Открыть меню наград для игроков
+    description: Открыть меню наград
   lefttime:
-    description: Команда для проверки (админ-панель)
+    description: Проверка времени (для админов)
     permission: bonus.admin

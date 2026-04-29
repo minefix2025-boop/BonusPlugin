@@ -22,12 +22,10 @@ public class Main extends JavaPlugin implements Listener, CommandExecutor {
 
     @Override
     public void onEnable() {
-        // Регистрация команд и событий
         getCommand("bonus").setExecutor(this);
         getCommand("lefttime").setExecutor(this);
         getServer().getPluginManager().registerEvents(this, this);
-
-        // Зарплата HERO: каждые 60 минут (72000 тиков) выдаем 500 монет
+        
         Bukkit.getScheduler().runTaskTimer(this, () -> {
             for (Player p : Bukkit.getOnlinePlayers()) {
                 if (p.hasPermission("group.hero")) {
@@ -36,8 +34,6 @@ public class Main extends JavaPlugin implements Listener, CommandExecutor {
                 }
             }
         }, 72000L, 72000L);
-        
-        getLogger().info("Плагин Bonus успешно запущен!");
     }
 
     @Override
@@ -47,14 +43,11 @@ public class Main extends JavaPlugin implements Listener, CommandExecutor {
 
         if (label.equalsIgnoreCase("bonus")) {
             openMenu(p);
-        } 
-        else if (label.equalsIgnoreCase("lefttime")) {
-            if (!p.hasPermission("bonus.admin")) {
-                p.sendMessage("§cУ вас нет прав администратора!");
-                return true;
+        } else if (label.equalsIgnoreCase("lefttime")) {
+            if (p.hasPermission("bonus.admin")) {
+                long mins = p.getStatistic(Statistic.PLAY_ONE_MINUTE) / 1200;
+                p.sendMessage("§a[Админ] Ваше время: §e" + mins + " мин.");
             }
-            long mins = p.getStatistic(Statistic.PLAY_ONE_MINUTE) / 1200;
-            p.sendMessage("§a[Админ] Ваше время в игре: §e" + mins + " мин.");
         }
         return true;
     }
@@ -63,10 +56,9 @@ public class Main extends JavaPlugin implements Listener, CommandExecutor {
         Inventory inv = Bukkit.createInventory(null, 27, "§0Награды за онлайн");
         long mins = p.getStatistic(Statistic.PLAY_ONE_MINUTE) / 1200;
 
-        // Предметы в меню
         inv.setItem(10, createItem(Material.IRON_INGOT, "§e5 Минут", mins >= 5, "1000 монет"));
         inv.setItem(13, createItem(Material.GOLD_INGOT, "§e30 Минут", mins >= 30, "5000 монет"));
-        inv.setItem(16, createItem(Material.NETHERITE_CHESTPLATE, "§b§lHERO (2 часа)", mins >= 120, "Статус HERO на всегда"));
+        inv.setItem(16, createItem(Material.NETHERITE_CHESTPLATE, "§b§lHERO", mins >= 120, "Привилегия HERO"));
 
         p.openInventory(inv);
     }
@@ -77,8 +69,7 @@ public class Main extends JavaPlugin implements Listener, CommandExecutor {
         meta.setDisplayName(name);
         List<String> lore = new ArrayList<>();
         lore.add("§7Награда: §a" + reward);
-        lore.add("");
-        lore.add(ready ? "§a✔ Нажми, чтобы получить!" : "§c✖ Отыграно недостаточно времени");
+        lore.add(ready ? "§a✔ Можно забрать!" : "§c✖ Еще не отыграно");
         meta.setLore(lore);
         item.setItemMeta(meta);
         return item;
@@ -87,7 +78,7 @@ public class Main extends JavaPlugin implements Listener, CommandExecutor {
     @EventHandler
     public void onClick(InventoryClickEvent e) {
         if (e.getView().getTitle().equals("§0Награды за онлайн")) {
-            e.setCancelled(true); // Чтобы нельзя было воровать иконки
+            e.setCancelled(true);
             if (e.getCurrentItem() == null) return;
 
             Player p = (Player) e.getWhoClicked();
@@ -96,17 +87,10 @@ public class Main extends JavaPlugin implements Listener, CommandExecutor {
 
             if (slot == 10 && mins >= 5) {
                 Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "eco give " + p.getName() + " 1000");
-                p.sendMessage("§a[Бонус] §fВы получили §e1000 монет§f!");
                 p.closeInventory();
-            } 
-            else if (slot == 13 && mins >= 30) {
-                Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "eco give " + p.getName() + " 5000");
-                p.sendMessage("§a[Бонус] §fВы получили §e5000 монет§f!");
-                p.closeInventory();
-            }
-            else if (slot == 16 && mins >= 120) {
+            } else if (slot == 16 && mins >= 120) {
                 Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "lp user " + p.getName() + " parent set hero");
-                p.sendMessage("§b[Бонус] §fПоздравляем! Вы теперь §lHERO§f!");
+                p.sendMessage("§b[Бонус] §fВы получили статус §lHERO§f!");
                 p.closeInventory();
             }
         }
